@@ -8,11 +8,9 @@ python3 openrlhf/cli/train_ppo_ray.py \
     --ref_num_gpus_per_node 2 \
     --reward_num_nodes 0 \
     --reward_num_gpus_per_node 0 \
-    --critic_num_nodes 1 \
-    --critic_num_gpus_per_node 2 \
     --actor_num_nodes 1 \
     --actor_num_gpus_per_node 2 \
-    --vllm_num_engines 2 \
+    --vllm_num_engines 4 \
     --vllm_tensor_parallel_size 1 \
     --colocate_actor_ref \
     --pretrain Qwen/Qwen2.5-Math-7B \
@@ -31,7 +29,6 @@ python3 openrlhf/cli/train_ppo_ray.py \
     --zero_stage 3 \
     --bf16 \
     --actor_learning_rate 5e-7 \
-    --critic_learning_rate 9e-6 \
     --init_kl_coef 0.01 \
     --prompt_data  pe-nlp/math_level3to5_data_processed_with_qwen_prompt \
     --input_key input \
