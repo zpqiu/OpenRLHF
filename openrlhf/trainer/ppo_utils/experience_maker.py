@@ -911,7 +911,7 @@ class R1RemoteExperienceMaker(RemoteExperienceMaker):
         # Expand prompt list based on the number of samples per prompt
         all_prompts = sum([[prompt] * args.n_samples_per_prompt for prompt in all_prompt_answers['input']], [])
         all_prompt_token_ids = self.tokenize_fn(all_prompts, self.prompt_max_len, padding=False)["input_ids"]
-        all_answers = all_prompt_answers['answer']
+        all_answers = sum([[answer] * args.n_samples_per_prompt for answer in all_prompt_answers['answer']], [])
 
         # Distribute requests to engines and collect responses to outputs
         all_output_refs = []

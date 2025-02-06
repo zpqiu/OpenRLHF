@@ -9,7 +9,8 @@ def accuracy_reward(completions, solution, **kwargs):
     contents = completions
     rewards = []
     for content, sol in zip(contents, solution):
-        gold_parsed = parse(sol, extraction_mode="first_match", extraction_config=[LatexExtractionConfig()])
+        # gold_parsed = parse(sol, extraction_mode="first_match", extraction_config=[LatexExtractionConfig()])
+        gold_parsed = sol
         if len(gold_parsed) != 0:
             # We require the answer to be provided in correct latex (no malformed operators)
             answer_parsed = parse(
@@ -61,10 +62,25 @@ def extract_qwen_output(prompt):
 
 def reward_func(queries, prompts, **kwargs):
     # queries is prompts + responses
-    print(queries)
+    # print(queries)
     answers = kwargs['answers']
+    print(answers)
     responses = [extract_qwen_output(query) for query in queries]
+    print(f"responses_count: {len(responses)}, answers_count: {len(answers)}")
+    
+    # 确保responses非空
+    if not responses:
+        return torch.tensor([0.0] * len(queries))
     
     accuracy_rewards = accuracy_reward(responses, answers)
     format_rewards = format_reward(responses)
+    print(f"accuracy_rewards_count: {len(accuracy_rewards)}, format_rewards_count: {len(format_rewards)}")
+    # 确保两个奖励列表长度相同
+    if len(accuracy_rewards) != len(format_rewards):
+        print(f"Warning: Reward lengths mismatch - accuracy: {len(accuracy_rewards)}, format: {len(format_rewards)}")
+        # 使用较短的长度
+        min_len = min(len(accuracy_rewards), len(format_rewards))
+        accuracy_rewards = accuracy_rewards[:min_len]
+        format_rewards = format_rewards[:min_len]
+    
     return torch.tensor(accuracy_rewards) + torch.tensor(format_rewards)
