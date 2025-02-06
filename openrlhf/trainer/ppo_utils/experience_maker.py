@@ -874,7 +874,7 @@ class R1RemoteExperienceMaker(RemoteExperienceMaker):
         return experiences
 
     @torch.no_grad()
-    def generate_samples(self, all_prompt_answers: Dict[str, List[str]], **generate_kwargs) -> List[Samples]:
+    def generate_samples(self, all_prompt_answers: Dict[str, List[str]], **kwargs) -> List[Samples]:
         """
         Generate samples and return in batches.
 
