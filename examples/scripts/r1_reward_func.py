@@ -51,7 +51,7 @@ def format_reward(completions, **kwargs):
 
 
 def extract_qwen_output(prompt):
-    model_output= re.sub(r'^.*?<\|im_start\|>assistant', '<|im_start|>assistant', sequence, flags=re.DOTALL,count = 1)
+    model_output= re.sub(r'^.*?<\|im_start\|>assistant', '<|im_start|>assistant', prompt, flags=re.DOTALL,count = 1)
     stop_words = ["</s>", "<|im_end|>", "<|endoftext|>"] 
     for stop_word in stop_words:
         if stop_word in model_output:
