@@ -116,7 +116,7 @@ class Samples:
     total_length: torch.Tensor
     prompts: list[str]
 
-
+@dataclass
 class R1Samples(Samples):
     """
     Samples for R1 model.
