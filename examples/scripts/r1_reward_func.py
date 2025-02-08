@@ -4,11 +4,14 @@ from latex2sympy2_extended import NormalizationConfig
 from math_verify import LatexExtractionConfig, parse, verify
 
 
-def accuracy_reward(completions, solution, **kwargs):
+def calculate_accuracy_reward(completions, solution, **kwargs):
     """Reward function that checks if the completion is the same as the ground truth."""
     contents = completions
     rewards = []
     for content, sol in zip(contents, solution):
+        if content == "":
+            rewards.append(0.0)
+            continue
         # gold_parsed = parse(sol, extraction_mode="first_match", extraction_config=[LatexExtractionConfig()])
         gold_parsed = sol
         if len(gold_parsed) != 0:
@@ -33,7 +36,10 @@ def accuracy_reward(completions, solution, **kwargs):
                 extraction_mode="first_match",
             )
             # Reward 1 if the content is the same as the ground truth, 0 otherwise
-            reward = float(verify(answer_parsed, gold_parsed))
+            if verify(answer_parsed, gold_parsed):
+                reward = 1.0
+            else:
+                reward = -1.0
         else:
             # If the gold solution is not parseable, we reward 1 to skip this example
             reward = 1.0
@@ -43,12 +49,22 @@ def accuracy_reward(completions, solution, **kwargs):
     return rewards
 
 
-def format_reward(completions, **kwargs):
-    """Reward function that checks if the completion has a specific format."""
+# case = '<think>123</think><think>123</think><answer>456</answer>'
+def is_format_correct(completion):
     pattern = r"^<think>.*?</think>\s*<answer>.*?</answer>$"
+    if not re.match(pattern, completion):
+        return False
+    # check if all tags only appear once
+    tags = ["<think>", "</think>", "<answer>", "</answer>"]
+    for tag in tags:
+        if completion.count(tag) != 1:
+            return False
+    return True
+
+def calculate_format_reward(completions, **kwargs):
+    """Reward function that checks if the completion has a specific format."""
     completion_contents = completions
-    matches = [re.match(pattern, content) for content in completion_contents]
-    return [1.0 if match else 0.0 for match in matches]
+    return [1.0 if is_format_correct(content) else -1.0 for content in completion_contents]
 
 
 def extract_qwen_output(prompt):
@@ -57,30 +73,39 @@ def extract_qwen_output(prompt):
     for stop_word in stop_words:
         if stop_word in model_output:
             model_output = model_output.split(stop_word)[0].strip()
+    model_output = model_output[len("<|im_start|>assistant"):].strip()
     return model_output
 
+
+def extract_answer_part(response):
+    pattern = r"<answer>(.*?)</answer>$"
+    match = re.search(pattern, response)
+    if match:
+        return match.group(1)
+    return ""
 
 def reward_func(queries, prompts, **kwargs):
     # queries is prompts + responses
     # print(queries)
     answers = kwargs['answers']
-    print(answers)
+    # print(answers)
     responses = [extract_qwen_output(query) for query in queries]
-    print(f"responses_count: {len(responses)}, answers_count: {len(answers)}")
+    final_answers = [extract_answer_part(response) for response in responses]
+    # print(f"responses_count: {len(responses)}, answers_count: {len(answers)}")
+    print(f"Response Case: {responses[0]}")
+    print(f"Answer Case: {final_answers[0]}")
+
+    # # 确保responses非空
+    # if not responses:
+    #     return torch.tensor([0.0] * len(queries))
+    format_rewards = calculate_format_reward(responses)
+    accuracy_rewards = calculate_accuracy_reward(final_answers, answers)
+
+    final_rewards = []
+    for final_answer, format_reward, accuracy_reward in zip(final_answers, format_rewards, accuracy_rewards):
+        if format_reward == 1.0 and final_answer != "":
+            final_rewards.append(format_reward + accuracy_reward)
+        else:
+            final_rewards.append(format_reward)
     
-    # 确保responses非空
-    if not responses:
-        return torch.tensor([0.0] * len(queries))
-    
-    accuracy_rewards = accuracy_reward(responses, answers)
-    format_rewards = format_reward(responses)
-    print(f"accuracy_rewards_count: {len(accuracy_rewards)}, format_rewards_count: {len(format_rewards)}")
-    # 确保两个奖励列表长度相同
-    if len(accuracy_rewards) != len(format_rewards):
-        print(f"Warning: Reward lengths mismatch - accuracy: {len(accuracy_rewards)}, format: {len(format_rewards)}")
-        # 使用较短的长度
-        min_len = min(len(accuracy_rewards), len(format_rewards))
-        accuracy_rewards = accuracy_rewards[:min_len]
-        format_rewards = format_rewards[:min_len]
-    
-    return torch.tensor(accuracy_rewards) + torch.tensor(format_rewards)
+    return torch.tensor(final_rewards)
