@@ -9,7 +9,7 @@ def calculate_accuracy_reward(completions, solution, **kwargs):
     contents = completions
     rewards = []
     for content, sol in zip(contents, solution):
-        if content == "":
+        if content.strip() == "":
             rewards.append(0.0)
             continue
         # gold_parsed = parse(sol, extraction_mode="first_match", extraction_config=[LatexExtractionConfig()])
@@ -39,7 +39,7 @@ def calculate_accuracy_reward(completions, solution, **kwargs):
             if verify(answer_parsed, gold_parsed):
                 reward = 1.0
             else:
-                reward = -1.0
+                reward = -0.5
         else:
             # If the gold solution is not parseable, we reward 1 to skip this example
             reward = 1.0
@@ -52,7 +52,7 @@ def calculate_accuracy_reward(completions, solution, **kwargs):
 # case = '<think>123</think><think>123</think><answer>456</answer>'
 def is_format_correct(completion):
     pattern = r"^<think>.*?</think>\s*<answer>.*?</answer>$"
-    if not re.match(pattern, completion):
+    if not re.match(pattern, completion, re.DOTALL | re.MULTILINE):
         return False
     # check if all tags only appear once
     tags = ["<think>", "</think>", "<answer>", "</answer>"]
@@ -60,6 +60,20 @@ def is_format_correct(completion):
         if completion.count(tag) != 1:
             return False
     return True
+
+def count_xml(text) -> float:
+    count = 0.0
+    if text.count("<think>") == 1:
+        count += 0.125
+    if text.count("</think>") == 1:
+        count += 0.125
+    if text.count("<answer>") == 1:
+        count += 0.125
+        count -= len(text.split("</answer>")[-1])*0.001
+    if text.count("</answer>") == 1:
+        count += 0.125
+        count -= (len(text.split("</answer>")[-1]) - 1)*0.001
+    return count
 
 def calculate_format_reward(completions, **kwargs):
     """Reward function that checks if the completion has a specific format."""
@@ -103,9 +117,11 @@ def reward_func(queries, prompts, **kwargs):
 
     final_rewards = []
     for final_answer, format_reward, accuracy_reward in zip(final_answers, format_rewards, accuracy_rewards):
-        if format_reward == 1.0 and final_answer != "":
-            final_rewards.append(format_reward + accuracy_reward)
-        else:
+        if format_reward == -1.0:
             final_rewards.append(format_reward)
+        elif final_answer.strip() != "":
+            final_rewards.append(accuracy_reward)
+        else:
+            final_rewards.append(-0.5)
     
     return torch.tensor(final_rewards)
