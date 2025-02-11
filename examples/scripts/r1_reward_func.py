@@ -1,5 +1,6 @@
 import torch
 import re
+import random
 from latex2sympy2_extended import NormalizationConfig
 from math_verify import LatexExtractionConfig, parse, verify
 
@@ -92,8 +93,8 @@ def extract_qwen_output(prompt):
 
 
 def extract_answer_part(response):
-    pattern = r"<answer>(.*?)</answer>$"
-    match = re.search(pattern, response)
+    pattern = r"<answer>(.*?)</answer>"
+    match = re.search(pattern, response, re.DOTALL | re.MULTILINE)
     if match:
         return match.group(1)
     return ""
@@ -106,8 +107,9 @@ def reward_func(queries, prompts, **kwargs):
     responses = [extract_qwen_output(query) for query in queries]
     final_answers = [extract_answer_part(response) for response in responses]
     # print(f"responses_count: {len(responses)}, answers_count: {len(answers)}")
-    print(f"Response Case: {responses[0]}")
-    print(f"Answer Case: {final_answers[0]}")
+    if random.randint(0, 3) == 1:  
+        print(f"Response Case: {responses[0]}")
+        print(f"Answer Case: {final_answers[0]}")
 
     # # 确保responses非空
     # if not responses:
