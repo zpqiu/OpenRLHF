@@ -119,11 +119,11 @@ def reward_func(queries, prompts, **kwargs):
 
     final_rewards = []
     for final_answer, format_reward, accuracy_reward in zip(final_answers, format_rewards, accuracy_rewards):
-        if format_reward == -1.0:
-            final_rewards.append(format_reward)
-        elif final_answer.strip() != "":
-            final_rewards.append(accuracy_reward)
+        if format_reward == 1.0 and accuracy_reward == 1.0:
+            final_rewards.append(1.0)
+        # elif final_answer.strip() != "":
+        #     final_rewards.append(accuracy_reward)
         else:
-            final_rewards.append(-0.5)
+            final_rewards.append(0.0)
     
     return torch.tensor(final_rewards)

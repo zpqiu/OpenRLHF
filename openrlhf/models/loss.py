@@ -76,6 +76,31 @@ class PolicyLoss(nn.Module):
         loss = masked_mean(loss, action_mask, dim=-1).mean()
         return loss
 
+class GRPOLoss(nn.Module):
+    """
+    GRPO Loss
+    """
+
+    def __init__(self, clip_eps: float = 0.2) -> None:
+        super().__init__()
+        self.clip_eps = clip_eps
+
+    def forward(
+        self,
+        log_probs: torch.Tensor,
+        old_log_probs: torch.Tensor,
+        advantages: torch.Tensor,
+        kl: torch.Tensor,
+        kl_coef: float,
+        action_mask: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
+        ratio = (log_probs - old_log_probs).exp()
+        surr1 = ratio * advantages
+        surr2 = ratio.clamp(1 - self.clip_eps, 1 + self.clip_eps) * advantages
+        loss = -torch.min(surr1, surr2) - kl_coef * kl
+        loss = masked_mean(loss, action_mask, dim=-1).mean()
+        return loss
+
 
 class ValueLoss(nn.Module):
     """

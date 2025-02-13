@@ -9,7 +9,7 @@ from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from openrlhf.models import Actor, GPTLMLoss, PolicyLoss, ValueLoss
+from openrlhf.models import Actor, GPTLMLoss, PolicyLoss, ValueLoss, GRPOLoss
 from openrlhf.models.utils import masked_mean
 from openrlhf.utils.distributed_sampler import DistributedSampler
 
@@ -124,7 +124,10 @@ class PPOTrainer(ABC):
         self.actor_scheduler = actor_scheduler
         self.critic_scheduler = critic_scheduler
 
-        self.actor_loss_fn = PolicyLoss(eps_clip)
+        if self.args.advantage_estimator == "grpo":
+            self.actor_loss_fn = GRPOLoss(eps_clip)
+        else:
+            self.actor_loss_fn = PolicyLoss(eps_clip)
         self.critic_loss_fn = ValueLoss(value_clip)
         self.ptx_loss_fn = GPTLMLoss()
 
@@ -340,6 +343,10 @@ class PPOTrainer(ABC):
             sequences = torch.cat(experience.sequences, dim=0).unsqueeze(0)
             old_action_log_probs = torch.cat(experience.action_log_probs, dim=0).unsqueeze(0)
             advantages = torch.cat(experience.advantages, dim=0).unsqueeze(0)
+            if experience.kl is not None:
+                kl = torch.cat(experience.kl, dim=0).unsqueeze(0)
+            else:
+                kl = None
             num_actions = [v.numel() for v in experience.advantages]
             packed_seq_lens = [s.numel() for s in experience.sequences]
             attention_mask = torch.cat(
@@ -349,6 +356,10 @@ class PPOTrainer(ABC):
             sequences = experience.sequences
             old_action_log_probs = experience.action_log_probs
             advantages = experience.advantages
+            if experience.kl is not None:
+                kl = experience.kl
+            else:
+                kl = None
             num_actions = experience.action_mask.size(1)
             packed_seq_lens = None
             attention_mask = experience.attention_mask
@@ -363,12 +374,22 @@ class PPOTrainer(ABC):
         )
 
         # loss function
-        actor_loss = self.actor_loss_fn(
-            action_log_probs,
-            old_action_log_probs,
-            advantages,
-            action_mask=experience.action_mask,
-        )
+        if self.args.advantage_estimator == "grpo":
+            actor_loss = self.actor_loss_fn(
+                action_log_probs,
+                old_action_log_probs,
+                advantages,
+                kl,
+                self.kl_ctl.value,
+                action_mask=experience.action_mask,
+            )
+        else:
+            actor_loss = self.actor_loss_fn(
+                action_log_probs,
+                old_action_log_probs,
+                advantages,
+                action_mask=experience.action_mask,
+            )
         # mixtral
         if self.aux_loss:
             aux_loss = output.aux_loss
