@@ -379,9 +379,16 @@ class NaiveExperienceMaker(ABC):
             return experiences, rewards
         
         if args.advantage_estimator == "grpo":
+            # rewards = torch.cat([experience.info["reward"] for experience in experiences])
+            # rewards = rewards.reshape(-1, args.n_samples_per_prompt).to(device="cuda")
+            # rewards = (rewards - rewards.mean(1, keepdim=True)) / (rewards.std(1, keepdim=True) + 1e-8)
+            # rewards = rewards.reshape(-1).to(device="cpu").chunk(len(experiences))
+            # return experiences, rewards
+            # This is a modified version of GRPO, with / std and K3 kl loss removed.
+            # `/ std` is not needed in RL variance reduction theory, and `k3 KL` has a larger variance than `k1 KL` under a categorical distribution.
             rewards = torch.cat([experience.info["reward"] for experience in experiences])
             rewards = rewards.reshape(-1, args.n_samples_per_prompt).to(device="cuda")
-            rewards = (rewards - rewards.mean(1, keepdim=True)) / (rewards.std(1, keepdim=True) + 1e-8)
+            rewards = rewards - rewards.mean(-1, keepdim=True)
             rewards = rewards.reshape(-1).to(device="cpu").chunk(len(experiences))
             return experiences, rewards
         # default rewards
@@ -858,16 +865,13 @@ class R1RemoteExperienceMaker(RemoteExperienceMaker):
                 reward_clip_range=args.reward_clip_range,
             )
 
-            if self.advantage_estimator in ["reinforce", "rloo"]:
+            if self.advantage_estimator in ["reinforce", "rloo", "grpo"]:
                 experience.returns = self.get_cumulative_returns(
                     reward,
                     experience.action_mask,
                     generate_kwargs["gamma"],
                 )
                 experience.advantages = deepcopy(experience.returns)
-            elif self.advantage_estimator == "grpo":
-                experience.returns = reward
-                experience.advantages = reward
             else:
                 raise Exception(f"Unkown advantage_estimator {self.advantage_estimator}")
 

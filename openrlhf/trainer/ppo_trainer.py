@@ -124,10 +124,10 @@ class PPOTrainer(ABC):
         self.actor_scheduler = actor_scheduler
         self.critic_scheduler = critic_scheduler
 
-        if self.args.advantage_estimator == "grpo":
-            self.actor_loss_fn = GRPOLoss(eps_clip)
-        else:
-            self.actor_loss_fn = PolicyLoss(eps_clip)
+        # if self.args.advantage_estimator == "grpo":
+        #     self.actor_loss_fn = GRPOLoss(eps_clip)
+        # else:
+        self.actor_loss_fn = PolicyLoss(eps_clip)
         self.critic_loss_fn = ValueLoss(value_clip)
         self.ptx_loss_fn = GPTLMLoss()
 
@@ -374,22 +374,28 @@ class PPOTrainer(ABC):
         )
 
         # loss function
-        if self.args.advantage_estimator == "grpo":
-            actor_loss = self.actor_loss_fn(
-                action_log_probs,
-                old_action_log_probs,
-                advantages,
-                kl,
-                self.kl_ctl.value,
-                action_mask=experience.action_mask,
-            )
-        else:
-            actor_loss = self.actor_loss_fn(
-                action_log_probs,
-                old_action_log_probs,
-                advantages,
-                action_mask=experience.action_mask,
-            )
+        # if self.args.advantage_estimator == "grpo":
+        #     actor_loss = self.actor_loss_fn(
+        #         action_log_probs,
+        #         old_action_log_probs,
+        #         advantages,
+        #         kl,
+        #         self.kl_ctl.value,
+        #         action_mask=experience.action_mask,
+        #     )
+        # else:
+        #     actor_loss = self.actor_loss_fn(
+        #         action_log_probs,
+        #         old_action_log_probs,
+        #         advantages,
+        #         action_mask=experience.action_mask,
+        #     )
+        actor_loss = self.actor_loss_fn(
+            action_log_probs,
+            old_action_log_probs,
+            advantages,
+            action_mask=experience.action_mask,
+        )
         # mixtral
         if self.aux_loss:
             aux_loss = output.aux_loss
