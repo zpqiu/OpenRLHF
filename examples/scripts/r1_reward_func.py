@@ -2,7 +2,7 @@ import torch
 import re
 import random
 from latex2sympy2_extended import NormalizationConfig
-from math_verify import LatexExtractionConfig, StringExtractionConfig, parse, verify
+from math_verify import LatexExtractionConfig, StringExtractionConfig, ExprExtractionConfig, parse, verify
 
 
 def last_boxed_only_string(string):
@@ -54,7 +54,7 @@ def calculate_accuracy_reward(completions, solution, do_print=False):
             rewards.append(1.0)
             continue
 
-        gold_parsed = parse(sol, extraction_mode="first_match", extraction_config=[LatexExtractionConfig(), StringExtractionConfig()])
+        gold_parsed = parse(sol, extraction_mode="first_match", extraction_config=[LatexExtractionConfig(), ExprExtractionConfig(), StringExtractionConfig()])
         if len(gold_parsed) != 0:
             # We require the answer to be provided in correct latex (no malformed operators)
             answer_parsed = parse(
@@ -72,7 +72,9 @@ def calculate_accuracy_reward(completions, solution, do_print=False):
                         # Ensures that boxed is tried first
                         boxed_match_priority=0,
                         try_extract_without_anchor=False,
-                    )
+                    ),
+                    ExprExtractionConfig(),
+                    StringExtractionConfig()
                 ],
                 extraction_mode="first_match",
             )
@@ -86,7 +88,7 @@ def calculate_accuracy_reward(completions, solution, do_print=False):
                 reward = -1.0
         else:
             # If the gold solution is not parseable, we reward 1 to skip this example
-            reward = 1.0
+            reward = 0.0
             print("Failed to parse gold solution: ", sol)
         rewards.append(reward)
 
@@ -150,7 +152,10 @@ def reward_func(queries, prompts, **kwargs):
 
     final_rewards = []
     for format_reward, accuracy_reward in zip(format_rewards, accuracy_rewards):
-        if accuracy_reward == 1.0 and format_reward == 1.0:
+        if accuracy_reward == 0.0:
+            # will skip this example in reinforce algo
+            final_rewards.append(0.0)
+        elif accuracy_reward == 1.0 and format_reward == 1.0:
             final_rewards.append(1.0)
         elif accuracy_reward == -1.0 and format_reward == 1.0:
             final_rewards.append(-0.5)
