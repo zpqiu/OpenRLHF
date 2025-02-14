@@ -107,6 +107,13 @@ def is_format_correct(completion):
     for tag in tags:
         if completion.count(tag) != 1:
             return False
+    
+    # check if <think>...</think> is empty
+    think_pattern = r"<think>(.*?)</think>"
+    think_match = re.search(think_pattern, completion, re.DOTALL | re.MULTILINE)
+    if think_match and think_match.group(1).strip() == "":
+        return False
+    
     return True
 
 def calculate_format_reward(completions, **kwargs):
