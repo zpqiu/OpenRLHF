@@ -7,6 +7,7 @@ from typing import List, Optional, Tuple, Union, Dict
 import ray
 import torch
 import torch.nn as nn
+import numpy as np
 from tqdm import tqdm
 
 from openrlhf.models.actor import Actor
@@ -1019,6 +1020,18 @@ class R1RemoteExperienceMaker(RemoteExperienceMaker):
         return samples_list
 
     @torch.no_grad()
+    def stats_reflection_words(self, queries: List[str]):
+        """
+        Stats the reflection words in the answers.
+        """
+        keywords = [
+            "reevaluate", "reevaluation", "recheck", "rethink", "check again", "re-evaluate", "try again", "re-examine"
+        ]
+        n_reflections = [float(sum([query.count(keyword) for keyword in keywords])) for query in queries]
+        has_reflection = [float(n_reflections[i] > 0) for i in range(len(n_reflections))]
+        return torch.tensor(has_reflection), torch.tensor(n_reflections)
+
+    @torch.no_grad()
     def make_experience(self, samples: R1Samples) -> Experience:
         """
         Turn samples into experience by calculating logprobs, values, rewards, and kl divergence.
@@ -1051,6 +1064,19 @@ class R1RemoteExperienceMaker(RemoteExperienceMaker):
             ray.get([base_action_log_probs_ref])
             ray.get([self.initial_model.empty_cache.remote()])
 
+        if not self.packing_samples:
+            queries = self.tokenizer.batch_decode(sequences_cpu, skip_special_tokens=False)
+        else:
+            sequences_list = []
+            offset = 0
+            tokens_list = sequences_cpu.tolist()[0]
+            for length in packed_seq_lens:
+                sequences_list.append(tokens_list[offset : offset + length])
+                offset += length
+            queries = self.tokenizer.batch_decode(sequences_list, skip_special_tokens=False)
+
+        has_reflection, n_reflections = self.stats_reflection_words(queries)
+
         # rewards
         r_refs = []
         # support remote RM API with ray
@@ -1059,17 +1085,6 @@ class R1RemoteExperienceMaker(RemoteExperienceMaker):
                 r_refs.append(rm.forward.remote(sequences_cpu, attention_mask_cpu, packed_seq_lens=packed_seq_lens))
         else:
             # remote RM
-            if not self.packing_samples:
-                queries = self.tokenizer.batch_decode(sequences_cpu, skip_special_tokens=False)
-            else:
-                sequences_list = []
-                offset = 0
-                tokens_list = sequences_cpu.tolist()[0]
-                for length in packed_seq_lens:
-                    sequences_list.append(tokens_list[offset : offset + length])
-                    offset += length
-                queries = self.tokenizer.batch_decode(sequences_list, skip_special_tokens=False)
-
             if self.custom_reward_func:
                 r = self.custom_reward_func.remote(queries, samples.prompts, answers=samples.answers)
                 r_refs.append(r)
@@ -1128,6 +1143,8 @@ class R1RemoteExperienceMaker(RemoteExperienceMaker):
             "response_length": samples.response_length,
             "total_length": samples.total_length,
             "num_actions": num_actions,
+            "has_reflection": has_reflection,
+            "n_reflections": n_reflections,
         }
 
         if self.strategy.args.perf:
