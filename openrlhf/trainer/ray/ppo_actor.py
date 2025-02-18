@@ -10,10 +10,10 @@ import torch
 import torch.distributed
 from transformers.trainer import get_scheduler
 
-from openrlhf.datasets import PromptDataset, SFTDataset
+from openrlhf.datasets import PromptDataset, SFTDataset, R1Dataset
 from openrlhf.models import Actor
 from openrlhf.trainer import PPOTrainer
-from openrlhf.trainer.ppo_utils import Experience, RemoteExperienceMaker
+from openrlhf.trainer.ppo_utils import Experience, RemoteExperienceMaker, R1RemoteExperienceMaker
 from openrlhf.utils import blending_datasets, get_tokenizer
 from openrlhf.utils.deepspeed import DeepspeedStrategy
 from openrlhf.utils.distributed_util import init_process_group
@@ -41,7 +41,7 @@ class ActorPPOTrainer(PPOTrainer):
         self.vllm_engines = vllm_engines
         self.critic_train_remote = critic_train_remote
 
-        self.experience_maker = RemoteExperienceMaker(
+        self.experience_maker = R1RemoteExperienceMaker(
             self.actor,
             self.critic,
             self.reward_model,
@@ -318,49 +318,14 @@ class ActorModelRayActor(BasePPORole):
             train_split=args.prompt_split,
         )
         prompts_data = prompts_data.select(range(min(args.max_samples, len(prompts_data))))
-        self.prompts_dataset = PromptDataset(
+        self.prompts_dataset = R1Dataset(
             prompts_data, self.tokenizer, strategy, input_template=args.input_template
         )
         self.prompts_dataloader = strategy.setup_dataloader(
             self.prompts_dataset, args.rollout_batch_size // strategy.world_size, True, True
         )
 
-        if args.pretrain_data:
-            pretrain_data = blending_datasets(
-                args.pretrain_data,
-                args.pretrain_data_probs,
-                strategy,
-                args.seed,
-                return_eval=False,
-                train_split=args.pretrain_split,
-            )
-            pretrain_max_len = args.max_len if args.max_len else args.prompt_max_len + args.generate_max_len
-            pretrain_dataset = SFTDataset(
-                pretrain_data.select(
-                    range(
-                        min(
-                            len(pretrain_data), args.max_epochs * len(self.prompts_dataset) * args.n_samples_per_prompt
-                        )
-                    )
-                ),
-                self.tokenizer,
-                pretrain_max_len,
-                strategy,
-                pretrain_mode=True,
-            )
-            self.pretrain_dataloader = itertools.cycle(
-                iter(
-                    strategy.setup_dataloader(
-                        pretrain_dataset,
-                        args.micro_train_batch_size,
-                        True,
-                        True,
-                        pretrain_dataset.collate_fn,
-                    )
-                )
-            )
-        else:
-            self.pretrain_dataloader = None
+        self.pretrain_dataloader = None
 
     def max_steps(self):
         """Return the maximum number of steps."""
