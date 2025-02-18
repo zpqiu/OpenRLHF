@@ -1028,7 +1028,7 @@ class R1RemoteExperienceMaker(RemoteExperienceMaker):
             "reevaluate", "reevaluation", "recheck", "rethink", "check again", "re-evaluate", "try again", "re-examine"
         ]
         n_reflections = [sum([query.count(keyword) for keyword in keywords]) for query in queries]
-        has_reflection = [n_reflections[i] > 0 for i in range(len(n_reflections))]
+        has_reflection = [float(n_reflections[i] > 0) for i in range(len(n_reflections))]
         return torch.tensor(has_reflection), torch.tensor(n_reflections)
 
     @torch.no_grad()
