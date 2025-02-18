@@ -54,7 +54,23 @@ def calculate_accuracy_reward(completions, solution, do_print=False):
             rewards.append(1.0)
             continue
 
-        gold_parsed = parse(sol, extraction_mode="first_match", extraction_config=[LatexExtractionConfig(), ExprExtractionConfig(), StringExtractionConfig()])
+        gold_parsed = parse(f"\\boxed{{{sol}}}", extraction_mode="first_match", extraction_config=[
+                    LatexExtractionConfig(
+                        normalization_config=NormalizationConfig(
+                            nits=False,
+                            malformed_operators=False,
+                            basic_latex=True,
+                            equations=True,
+                            boxed=True,
+                            units=True,
+                        ),
+                        # Ensures that boxed is tried first
+                        boxed_match_priority=0,
+                        try_extract_without_anchor=False,
+                    ),
+                    ExprExtractionConfig(),
+                    # StringExtractionConfig()
+                ],)
         if len(gold_parsed) != 0:
             # We require the answer to be provided in correct latex (no malformed operators)
             answer_parsed = parse(
@@ -74,7 +90,7 @@ def calculate_accuracy_reward(completions, solution, do_print=False):
                         try_extract_without_anchor=False,
                     ),
                     ExprExtractionConfig(),
-                    StringExtractionConfig()
+                    # StringExtractionConfig()
                 ],
                 extraction_mode="first_match",
             )
