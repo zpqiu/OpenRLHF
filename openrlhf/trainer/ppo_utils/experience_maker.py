@@ -1029,7 +1029,7 @@ class R1RemoteExperienceMaker(RemoteExperienceMaker):
         ]
         n_reflections = [sum([query.count(keyword) for keyword in keywords]) for query in queries]
         has_reflection = [n_reflections[i] > 0 for i in range(len(n_reflections))]
-        return np.array(has_reflection), np.array(n_reflections)
+        return torch.tensor(has_reflection), torch.tensor(n_reflections)
 
     @torch.no_grad()
     def make_experience(self, samples: R1Samples) -> Experience:
